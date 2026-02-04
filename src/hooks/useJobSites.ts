@@ -6,12 +6,19 @@ export function useJobSites() {
   const [jobSites, setJobSites] = useState<JobSite[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch job sites from database
   const fetchJobSites = async () => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setJobSites([]);
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('job_sites')
         .select('*')
+        .eq('user_id', user.id)
         .order('date_added', { ascending: false });
 
       if (error) throw error;
@@ -37,10 +44,19 @@ export function useJobSites() {
 
   useEffect(() => {
     fetchJobSites();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      fetchJobSites();
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const addJobSite = async (data: JobSiteFormData) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
       const { error } = await supabase.from('job_sites').insert({
         title: data.title,
         url: data.url,
@@ -48,6 +64,7 @@ export function useJobSites() {
         category: data.category,
         tags: data.tags,
         is_favorite: data.isFavorite,
+        user_id: user.id,
       });
 
       if (error) throw error;
