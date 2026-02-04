@@ -14,7 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      job_sites: {
+        Row: {
+          category: string
+          created_at: string
+          date_added: string
+          description: string | null
+          id: string
+          is_favorite: boolean | null
+          tags: string[] | null
+          title: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          date_added?: string
+          description?: string | null
+          id?: string
+          is_favorite?: boolean | null
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          date_added?: string
+          description?: string | null
+          id?: string
+          is_favorite?: boolean | null
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
