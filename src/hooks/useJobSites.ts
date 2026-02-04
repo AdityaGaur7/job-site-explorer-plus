@@ -1,108 +1,109 @@
 import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { JobSite, JobSiteFormData } from '@/types/jobSite';
-
-const STORAGE_KEY = 'job-sites-collection';
-
-// Sample data for demo
-const sampleJobSites: JobSite[] = [
-  {
-    id: '1',
-    title: 'LinkedIn Jobs',
-    url: 'https://linkedin.com/jobs',
-    description: 'Professional networking platform with extensive job listings across all industries.',
-    category: 'Technology',
-    tags: ['professional', 'networking', 'full-time'],
-    isFavorite: true,
-    dateAdded: new Date('2024-01-15'),
-  },
-  {
-    id: '2',
-    title: 'AngelList',
-    url: 'https://angel.co/jobs',
-    description: 'Startup jobs and investment opportunities in the tech industry.',
-    category: 'Startup',
-    tags: ['startup', 'equity', 'tech'],
-    isFavorite: false,
-    dateAdded: new Date('2024-01-10'),
-  },
-  {
-    id: '3',
-    title: 'Remote.co',
-    url: 'https://remote.co',
-    description: 'Curated remote job opportunities across various fields and experience levels.',
-    category: 'Remote',
-    tags: ['remote', 'flexible', 'worldwide'],
-    isFavorite: true,
-    dateAdded: new Date('2024-01-20'),
-  },
-];
 
 export function useJobSites() {
   const [jobSites, setJobSites] = useState<JobSite[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load job sites from localStorage
-  useEffect(() => {
+  // Fetch job sites from database
+  const fetchJobSites = async () => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        // Convert date strings back to Date objects
-        const sitesWithDates = parsed.map((site: any) => ({
-          ...site,
-          dateAdded: new Date(site.dateAdded),
-        }));
-        setJobSites(sitesWithDates);
-      } else {
-        // Initialize with sample data
-        setJobSites(sampleJobSites);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(sampleJobSites));
-      }
+      const { data, error } = await supabase
+        .from('job_sites')
+        .select('*')
+        .order('date_added', { ascending: false });
+
+      if (error) throw error;
+
+      const sites: JobSite[] = (data || []).map((site) => ({
+        id: site.id,
+        title: site.title,
+        url: site.url,
+        description: site.description || '',
+        category: site.category,
+        tags: site.tags || [],
+        isFavorite: site.is_favorite || false,
+        dateAdded: new Date(site.date_added),
+      }));
+
+      setJobSites(sites);
     } catch (error) {
-      console.error('Error loading job sites:', error);
-      setJobSites(sampleJobSites);
+      console.error('Error fetching job sites:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchJobSites();
   }, []);
 
-  // Save to localStorage whenever jobSites changes
-  const saveJobSites = (sites: JobSite[]) => {
+  const addJobSite = async (data: JobSiteFormData) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sites));
-      setJobSites(sites);
+      const { error } = await supabase.from('job_sites').insert({
+        title: data.title,
+        url: data.url,
+        description: data.description,
+        category: data.category,
+        tags: data.tags,
+        is_favorite: data.isFavorite,
+      });
+
+      if (error) throw error;
+      await fetchJobSites();
     } catch (error) {
-      console.error('Error saving job sites:', error);
+      console.error('Error adding job site:', error);
     }
   };
 
-  const addJobSite = (data: JobSiteFormData) => {
-    const newSite: JobSite = {
-      id: Date.now().toString(),
-      ...data,
-      dateAdded: new Date(),
-    };
-    const updatedSites = [...jobSites, newSite];
-    saveJobSites(updatedSites);
+  const updateJobSite = async (id: string, data: JobSiteFormData) => {
+    try {
+      const { error } = await supabase
+        .from('job_sites')
+        .update({
+          title: data.title,
+          url: data.url,
+          description: data.description,
+          category: data.category,
+          tags: data.tags,
+          is_favorite: data.isFavorite,
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+      await fetchJobSites();
+    } catch (error) {
+      console.error('Error updating job site:', error);
+    }
   };
 
-  const updateJobSite = (id: string, data: JobSiteFormData) => {
-    const updatedSites = jobSites.map(site =>
-      site.id === id ? { ...site, ...data } : site
-    );
-    saveJobSites(updatedSites);
+  const deleteJobSite = async (id: string) => {
+    try {
+      const { error } = await supabase.from('job_sites').delete().eq('id', id);
+
+      if (error) throw error;
+      await fetchJobSites();
+    } catch (error) {
+      console.error('Error deleting job site:', error);
+    }
   };
 
-  const deleteJobSite = (id: string) => {
-    const updatedSites = jobSites.filter(site => site.id !== id);
-    saveJobSites(updatedSites);
-  };
+  const toggleFavorite = async (id: string) => {
+    const site = jobSites.find((s) => s.id === id);
+    if (!site) return;
 
-  const toggleFavorite = (id: string) => {
-    const updatedSites = jobSites.map(site =>
-      site.id === id ? { ...site, isFavorite: !site.isFavorite } : site
-    );
-    saveJobSites(updatedSites);
+    try {
+      const { error } = await supabase
+        .from('job_sites')
+        .update({ is_favorite: !site.isFavorite })
+        .eq('id', id);
+
+      if (error) throw error;
+      await fetchJobSites();
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+    }
   };
 
   return {
